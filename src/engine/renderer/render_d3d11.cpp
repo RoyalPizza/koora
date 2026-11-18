@@ -133,6 +133,68 @@ void renderer_begin_frame(float r, float g, float b)
     renderer.context->ClearRenderTargetView(renderer.render_target, color);
 }
 
+bool renderer_save_screenshot(const char* path, Arena& frame)
+{
+    ID3D11Texture2D* back_buffer = nullptr;
+    HRESULT result = renderer.swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D),
+                                                    (void**)&back_buffer);
+    if (FAILED(result))
+    {
+        LOG_ERROR("screenshot: could not get the back buffer: 0x%08lx", (unsigned long)result);
+        return false;
+    }
+
+    D3D11_TEXTURE2D_DESC desc;
+    back_buffer->GetDesc(&desc);
+    desc.Usage = D3D11_USAGE_STAGING;
+    desc.BindFlags = 0;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+    desc.MiscFlags = 0;
+
+    ID3D11Texture2D* staging = nullptr;
+    result = renderer.device->CreateTexture2D(&desc, nullptr, &staging);
+    if (SUCCEEDED(result))
+    {
+        renderer.context->CopyResource(staging, back_buffer);
+    }
+    RELEASE_COM(back_buffer);
+    if (FAILED(result))
+    {
+        LOG_ERROR("screenshot: could not create staging texture: 0x%08lx", (unsigned long)result);
+        return false;
+    }
+
+    int width = (int)desc.Width;
+    int height = (int)desc.Height;
+    uint8_t* rgba = ARENA_PUSH_ARRAY(frame, uint8_t, (size_t)width * (size_t)height * 4);
+    D3D11_MAPPED_SUBRESOURCE mapped = {};
+    result = rgba ? renderer.context->Map(staging, 0, D3D11_MAP_READ, 0, &mapped) : E_OUTOFMEMORY;
+    if (FAILED(result))
+    {
+        LOG_ERROR("screenshot: could not read pixels: 0x%08lx", (unsigned long)result);
+        RELEASE_COM(staging);
+        return false;
+    }
+
+    // The back buffer is BGRA; PNG wants RGBA.
+    for (int y = 0; y < height; y += 1)
+    {
+        const uint8_t* source = (const uint8_t*)mapped.pData + (size_t)y * mapped.RowPitch;
+        uint8_t* dest = rgba + (size_t)y * (size_t)width * 4;
+        for (int x = 0; x < width; x += 1)
+        {
+            dest[x * 4 + 0] = source[x * 4 + 2];
+            dest[x * 4 + 1] = source[x * 4 + 1];
+            dest[x * 4 + 2] = source[x * 4 + 0];
+            dest[x * 4 + 3] = 255;
+        }
+    }
+    renderer.context->Unmap(staging, 0);
+    RELEASE_COM(staging);
+
+    return assets_write_png(path, width, height, rgba);
+}
+
 void renderer_end_frame()
 {
     HRESULT result = renderer.swap_chain->Present(1, 0);

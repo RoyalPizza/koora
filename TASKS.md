@@ -71,12 +71,14 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   Note: `shader_load` is in this task and loads `sprite.hlsl` at startup, so a shader error
   fails the run early. Every shader shares the sprite vertex layout (pos, uv, color).
 
-- [ ] **5. Screenshots** (`--screenshot <path>`)
+- [x] **5. Screenshots** (`--screenshot <path>`)
   On the last frame of a `--frames` run, copy the back buffer to a staging texture and write
   a PNG with `stb_image_write` (from the stb submodule). This is how the agent checks what
   renders, so it comes before any drawing work.
   **Done when:** `bin\koora.exe --frames 10 --screenshot bin\shot.png` writes a PNG of the
   clear color, and you have looked at it.
+  Note: PNGs are encoded to memory with `stbi_write_png_to_mem`, then written, so no `FILE*`
+  sits in a callback context. stb allocations go to a 64 MB scratch arena reset after each use.
 
 - [ ] **6. Sprite batcher, rects and textures** (`renderer/`, `assets/`)
   One dynamic vertex buffer of quads, flushed when the texture or shader changes or the
@@ -177,3 +179,4 @@ Record decisions made while working through the list here, one line each, newest
   live in the platform layer, so `log.cpp` has no OS calls.
 - `log_output` prints program results (test summary) to stdout and copies them to the log file.
 - `assets_read_file` is the one place files are read whole; the pack (task 15) hooks in there.
+- Permanent arena raised to 192 MB to hold the 64 MB asset scratch arena.

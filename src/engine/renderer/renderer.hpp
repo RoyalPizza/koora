@@ -1,5 +1,6 @@
 #pragma once
 
+#include "engine/core/arena.hpp"
 #include "engine/platform/platform.hpp"
 
 // 2D renderer. One backend per OS (render_d3d11.cpp); the build picks which file is compiled.
@@ -13,6 +14,10 @@ void renderer_shutdown();
 
 // Starts a frame: handles window resizes and clears to the color (0..1 per channel).
 void renderer_begin_frame(float r, float g, float b);
+
+// Saves what has been drawn so far this frame as a PNG. Call before renderer_end_frame.
+// Pixel data is staged in the frame arena. Returns false on failure.
+bool renderer_save_screenshot(const char* path, Arena& frame);
 
 // Presents the frame with vsync.
 void renderer_end_frame();

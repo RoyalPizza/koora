@@ -1,5 +1,6 @@
 // Entry point: sets up logging and memory, then runs the tests or the main loop.
 
+#include "engine/assets/assets.hpp"
 #include "engine/core/arena.hpp"
 #include "engine/core/log.hpp"
 #include "engine/core/test.hpp"
@@ -11,7 +12,7 @@
 #include <string>
 
 constexpr size_t MEGABYTE = 1024 * 1024;
-constexpr size_t PERMANENT_ARENA_SIZE = 64 * MEGABYTE;
+constexpr size_t PERMANENT_ARENA_SIZE = 192 * MEGABYTE;
 constexpr size_t LEVEL_ARENA_SIZE = 64 * MEGABYTE;
 constexpr size_t FRAME_ARENA_SIZE = 16 * MEGABYTE;
 
@@ -29,6 +30,7 @@ struct Options
 {
     bool run_tests = false;
     int frame_limit = 0; // 0 = run until closed
+    const char* screenshot_path = nullptr; // saved on the last frame of a --frames run
 };
 
 // Where the exe finds things. Dev builds run from <root>/bin/ and read loose files.
@@ -77,7 +79,7 @@ int main(int argc, char** argv)
     }
 
     Memory memory;
-    if (!memory_init(memory))
+    if (!memory_init(memory) || !assets_init(memory.permanent))
     {
         log_shutdown();
         return 1;
@@ -131,11 +133,21 @@ static bool parse_options(int argc, char** argv, Options& options)
                 return false;
             }
         }
+        else if (strcmp(arg, "--screenshot") == 0 && has_value)
+        {
+            i += 1;
+            options.screenshot_path = argv[i];
+        }
         else
         {
             LOG_ERROR("unknown or incomplete argument '%s'", arg);
             return false;
         }
+    }
+    if (options.screenshot_path && options.frame_limit == 0)
+    {
+        LOG_ERROR("--screenshot needs --frames");
+        return false;
     }
     return true;
 }
@@ -211,12 +223,17 @@ static int run_game(const Options& options, const Paths& paths, Memory& memory)
             accumulator = 0.0;
         }
 
+        bool last_frame = options.frame_limit > 0 && frame_count + 1 >= options.frame_limit;
         renderer_begin_frame(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2]);
+        if (last_frame && options.screenshot_path)
+        {
+            renderer_save_screenshot(options.screenshot_path, memory.frame);
+        }
         renderer_end_frame();
 
         arena_reset(memory.frame);
         frame_count += 1;
-        if (options.frame_limit > 0 && frame_count >= options.frame_limit)
+        if (last_frame)
         {
             break;
         }
