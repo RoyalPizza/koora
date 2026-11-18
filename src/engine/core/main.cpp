@@ -4,6 +4,7 @@
 #include "engine/core/log.hpp"
 #include "engine/core/test.hpp"
 #include "engine/platform/platform.hpp"
+#include "engine/renderer/renderer.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -18,6 +19,8 @@ constexpr const char* WINDOW_TITLE = "koora";
 constexpr int WINDOW_WIDTH = 1280;
 constexpr int WINDOW_HEIGHT = 720;
 
+constexpr float CLEAR_COLOR[3] = { 0.10f, 0.12f, 0.18f };
+
 constexpr double FIXED_STEP = 1.0 / 60.0;
 // After a long stall (debugger, window drag) drop the backlog instead of running many steps.
 constexpr int MAX_STEPS_PER_FRAME = 5;
@@ -28,6 +31,15 @@ struct Options
     int frame_limit = 0; // 0 = run until closed
 };
 
+// Where the exe finds things. Dev builds run from <root>/bin/ and read loose files.
+struct Paths
+{
+    std::string exe_folder;
+    std::string root;
+    std::string game_folder;
+    std::string shader_folder;
+};
+
 struct Memory
 {
     void* block = nullptr;
@@ -36,17 +48,18 @@ struct Memory
     Arena frame;
 };
 
+static Paths make_paths();
 static bool parse_options(int argc, char** argv, Options& options);
 static bool memory_init(Memory& memory);
 static void memory_shutdown(Memory& memory);
-static int run_game(const Options& options, Memory& memory);
+static int run_game(const Options& options, const Paths& paths, Memory& memory);
 
 int main(int argc, char** argv)
 {
-    std::string exe_folder = platform_get_exe_folder();
-    std::string log_path = exe_folder + "logs\\koora.log";
+    Paths paths = make_paths();
+    std::string log_path = paths.exe_folder + "logs\\koora.log";
     log_init(log_path.c_str());
-    LOG_INFO("koora starting, exe folder '%s'", exe_folder.c_str());
+    LOG_INFO("koora starting, root '%s'", paths.root.c_str());
 
     Options options;
     if (!parse_options(argc, argv, options))
@@ -70,12 +83,31 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    exit_code = run_game(options, memory);
+    exit_code = run_game(options, paths, memory);
 
     memory_shutdown(memory);
     LOG_INFO("clean shutdown, exit code %d", exit_code);
     log_shutdown();
     return exit_code;
+}
+
+static Paths make_paths()
+{
+    Paths paths;
+    paths.exe_folder = platform_get_exe_folder();
+
+    // The root is the parent of the exe's folder: strip the trailing separator, then the name.
+    std::string folder = paths.exe_folder;
+    if (!folder.empty())
+    {
+        folder.pop_back();
+    }
+    size_t separator = folder.find_last_of("\\/");
+    paths.root = separator == std::string::npos ? folder : folder.substr(0, separator + 1);
+
+    paths.game_folder = paths.root + "src\\game\\";
+    paths.shader_folder = paths.root + "src\\engine\\renderer\\shaders\\";
+    return paths;
 }
 
 static bool parse_options(int argc, char** argv, Options& options)
@@ -137,11 +169,22 @@ static void memory_shutdown(Memory& memory)
     memory.block = nullptr;
 }
 
-static int run_game(const Options& options, Memory& memory)
+static int run_game(const Options& options, const Paths& paths, Memory& memory)
 {
     Window* window = platform_create_window(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!window)
     {
+        return 1;
+    }
+    if (!renderer_init(window, paths.shader_folder.c_str()))
+    {
+        platform_destroy_window(window);
+        return 1;
+    }
+    if (shader_load("sprite") < 0)
+    {
+        renderer_shutdown();
+        platform_destroy_window(window);
         return 1;
     }
 
@@ -168,6 +211,9 @@ static int run_game(const Options& options, Memory& memory)
             accumulator = 0.0;
         }
 
+        renderer_begin_frame(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2]);
+        renderer_end_frame();
+
         arena_reset(memory.frame);
         frame_count += 1;
         if (options.frame_limit > 0 && frame_count >= options.frame_limit)
@@ -177,6 +223,7 @@ static int run_game(const Options& options, Memory& memory)
     }
 
     LOG_INFO("main loop ended after %d frames, %d updates", frame_count, update_count);
+    renderer_shutdown();
     platform_destroy_window(window);
     return 0;
 }

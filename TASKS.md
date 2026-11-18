@@ -61,13 +61,15 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   log shows startup, arena sizes and a clean shutdown.
   Note: console subsystem for now (stderr log is visible); the window is per-monitor DPI aware.
 
-- [ ] **4. D3D11 renderer: clear screen** (`renderer/renderer.hpp`, `render_d3d11.cpp`)
+- [x] **4. D3D11 renderer: clear screen** (`renderer/renderer.hpp`, `render_d3d11.cpp`)
   Device, swap chain (flip model), render target, resize handling, vsync on.
   `renderer_init/shutdown/begin_frame/end_frame` per the design doc. Shaders are loaded from
   `.hlsl` files and compiled at runtime with `D3DCompile`; a compile error logs the
   compiler's message. Debug builds create the device with the debug layer and log its
   messages if available.
   **Done when:** the window clears to a color for `--frames 120`, with no D3D errors in the log.
+  Note: `shader_load` is in this task and loads `sprite.hlsl` at startup, so a shader error
+  fails the run early. Every shader shares the sprite vertex layout (pos, uv, color).
 
 - [ ] **5. Screenshots** (`--screenshot <path>`)
   On the last frame of a `--frames` run, copy the back buffer to a staging texture and write
@@ -174,3 +176,4 @@ Record decisions made while working through the list here, one line each, newest
 - File and folder helpers (UTF-8 paths, rename, delete, create folder) and debugger output
   live in the platform layer, so `log.cpp` has no OS calls.
 - `log_output` prints program results (test summary) to stdout and copies them to the log file.
+- `assets_read_file` is the one place files are read whole; the pack (task 15) hooks in there.

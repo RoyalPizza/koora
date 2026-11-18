@@ -30,7 +30,7 @@ if "%1"=="release" set FLAGS=%COMMON% /O2 /DNDEBUG
 set SOURCES=
 for /r src %%f in (*.cpp) do set SOURCES=!SOURCES! "%%f"
 
-cl %FLAGS% %SOURCES% /Fe:bin\koora.exe /link /INCREMENTAL:NO user32.lib
+cl %FLAGS% %SOURCES% /Fe:bin\koora.exe /link /INCREMENTAL:NO user32.lib d3d11.lib dxgi.lib d3dcompiler.lib
 set RESULT=%ERRORLEVEL%
 popd
 exit /b %RESULT%
