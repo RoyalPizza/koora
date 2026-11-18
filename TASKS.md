@@ -92,13 +92,15 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   `assets.cpp`. `src/game/game.cpp` holds a test scene until the sandbox (task 14).
   Placeholder art comes from `tools/make_placeholder_art.py`.
 
-- [ ] **6b. Low-resolution game screen** (`renderer/`)
+- [x] **6b. Low-resolution game screen** (`renderer/`)
   The engine is for NES/SNES-era pixel-art games, so the game draws into a fixed low-res
   render target (default 320x180, set by the game) that is scaled up to the window by the
   largest whole number, centered, with black bars. Point sampling. The camera and all draw
   calls work in game pixels. Screenshots capture the window as shown.
   **Done when:** a screenshot at 1280x720 shows the test scene at exactly 4x with sharp
   pixels, and a resized window keeps whole-number scaling with bars.
+  Note: checked with `--window 1000x700` (3x, 960x540 centered). `--window WxH` sets the
+  starting window size. `renderer_get_size` and the camera are in game pixels.
 
 - [ ] **7. Config (TOML)** (`config/config.hpp`, `config_toml.cpp`)
   Wrap tomlc17 per the design doc's `config.h`, plus string-array access. Missing keys or

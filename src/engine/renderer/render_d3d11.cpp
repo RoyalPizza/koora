@@ -38,6 +38,9 @@ constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_B8G8R8A8_UNORM;
 constexpr UINT64 MAX_DEBUG_MESSAGES_PER_FRAME = 32;
 constexpr const char* DEFAULT_SHADER_NAME = "sprite";
 constexpr uint8_t WHITE_PIXEL[4] = { 255, 255, 255, 255 };
+constexpr int DEFAULT_GAME_WIDTH = 320;
+constexpr int DEFAULT_GAME_HEIGHT = 180;
+constexpr float BAR_COLOR[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 
 static_assert(MAX_QUADS * VERTICES_PER_QUAD <= 65536, "indices are 16-bit");
 
@@ -95,8 +98,15 @@ struct Renderer
     ID3D11BlendState* blend_state;
     ID3D11RasterizerState* rasterizer_state;
     ID3D11SamplerState* point_sampler;
-    int width;
+    int width; // window
     int height;
+
+    // The game draws into this low-res target, which is scaled up to the window at the end.
+    ID3D11RenderTargetView* game_target;
+    int game_texture;
+    int game_width;
+    int game_height;
+    bool composed; // game target already drawn to the window this frame
 
     Shader shaders[MAX_SHADERS];
     int shader_count;
@@ -123,7 +133,9 @@ static bool create_swap_chain();
 static bool create_render_target();
 static bool create_batch_objects(Arena& permanent);
 static void resize_if_needed();
-static void upload_constants();
+static bool create_game_target(int width, int height);
+static void compose_to_window();
+static void upload_projection(float width, float height, float camera_x, float camera_y);
 static void push_quad(int texture, Rect dest, float u0, float v0, float u1, float v1,
                       uint32_t color);
 static uint32_t color_to_vertex(uint32_t rgba);
@@ -137,6 +149,7 @@ bool renderer_init(Window* window, Arena& permanent)
     renderer.window = window;
     renderer.default_shader = -1;
     renderer.white_texture = -1;
+    renderer.game_texture = -1;
     platform_get_window_size(window, &renderer.width, &renderer.height);
 
     if (!create_device() || !create_swap_chain() || !create_render_target() ||
@@ -148,7 +161,8 @@ bool renderer_init(Window* window, Arena& permanent)
 
     renderer.default_shader = shader_load(DEFAULT_SHADER_NAME);
     renderer.white_texture = renderer_create_texture(1, 1, WHITE_PIXEL);
-    if (renderer.default_shader < 0 || renderer.white_texture < 0)
+    if (renderer.default_shader < 0 || renderer.white_texture < 0 ||
+        !renderer_set_game_resolution(DEFAULT_GAME_WIDTH, DEFAULT_GAME_HEIGHT))
     {
         renderer_shutdown();
         return false;
@@ -166,6 +180,7 @@ void renderer_shutdown()
         renderer.context->ClearState();
     }
 
+    RELEASE_COM(renderer.game_target);
     for (int i = renderer.texture_count - 1; i >= 0; i -= 1)
     {
         RELEASE_COM(renderer.textures[i].view);
@@ -204,14 +219,16 @@ void renderer_begin_frame(float r, float g, float b)
     resize_if_needed();
 
     D3D11_VIEWPORT viewport = {};
-    viewport.Width = (float)renderer.width;
-    viewport.Height = (float)renderer.height;
+    viewport.Width = (float)renderer.game_width;
+    viewport.Height = (float)renderer.game_height;
     viewport.MaxDepth = 1.0f;
     renderer.context->RSSetViewports(1, &viewport);
-    renderer.context->OMSetRenderTargets(1, &renderer.render_target, nullptr);
+    renderer.context->OMSetRenderTargets(1, &renderer.game_target, nullptr);
 
     float color[4] = { r, g, b, 1.0f };
-    renderer.context->ClearRenderTargetView(renderer.render_target, color);
+    renderer.context->ClearRenderTargetView(renderer.game_target, color);
+
+    renderer.composed = false;
 
     renderer.quad_count = 0;
     renderer.batch_shader = renderer.default_shader;
@@ -227,7 +244,8 @@ void renderer_flush()
     }
     if (renderer.constants_dirty)
     {
-        upload_constants();
+        upload_projection((float)renderer.game_width, (float)renderer.game_height,
+                          renderer.camera_x, renderer.camera_y);
     }
 
     D3D11_MAPPED_SUBRESOURCE mapped = {};
@@ -267,7 +285,10 @@ void renderer_flush()
 
 bool renderer_save_screenshot(const char* path, Arena& frame)
 {
-    renderer_flush();
+    if (!renderer.composed)
+    {
+        compose_to_window();
+    }
 
     ID3D11Texture2D* back_buffer = nullptr;
     HRESULT result = renderer.swap_chain->GetBuffer(0, __uuidof(ID3D11Texture2D),
@@ -336,7 +357,10 @@ bool renderer_save_screenshot(const char* path, Arena& frame)
 
 void renderer_end_frame()
 {
-    renderer_flush();
+    if (!renderer.composed)
+    {
+        compose_to_window();
+    }
 
     HRESULT result = renderer.swap_chain->Present(1, 0);
     if (FAILED(result))
@@ -494,10 +518,34 @@ void renderer_set_camera(float x, float y)
     renderer.constants_dirty = true;
 }
 
+bool renderer_set_game_resolution(int width, int height)
+{
+    if (width <= 0 || height <= 0)
+    {
+        LOG_ERROR("bad game resolution %dx%d", width, height);
+        return false;
+    }
+    if (width == renderer.game_width && height == renderer.game_height)
+    {
+        return true;
+    }
+
+    renderer_flush();
+    if (!create_game_target(width, height))
+    {
+        return false;
+    }
+    renderer.game_width = width;
+    renderer.game_height = height;
+    renderer.constants_dirty = true;
+    LOG_INFO("game resolution %dx%d", width, height);
+    return true;
+}
+
 void renderer_get_size(int* width, int* height)
 {
-    *width = renderer.width;
-    *height = renderer.height;
+    *width = renderer.game_width;
+    *height = renderer.game_height;
 }
 
 void renderer_draw_rect(Rect dest, uint32_t color)
@@ -618,17 +666,116 @@ static bool create_batch_objects(Arena& permanent)
     return true;
 }
 
-static void upload_constants()
+static bool create_game_target(int width, int height)
+{
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width = (UINT)width;
+    desc.Height = (UINT)height;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    Texture texture = {};
+    texture.width = width;
+    texture.height = height;
+    ID3D11RenderTargetView* target = nullptr;
+    HRESULT result = renderer.device->CreateTexture2D(&desc, nullptr, &texture.texture);
+    if (SUCCEEDED(result))
+    {
+        result = renderer.device->CreateShaderResourceView(texture.texture, nullptr,
+                                                           &texture.view);
+    }
+    if (SUCCEEDED(result))
+    {
+        result = renderer.device->CreateRenderTargetView(texture.texture, nullptr, &target);
+    }
+    bool table_full = renderer.game_texture < 0 && renderer.texture_count >= MAX_TEXTURES;
+    if (SUCCEEDED(result) && table_full)
+    {
+        result = E_OUTOFMEMORY;
+    }
+    if (FAILED(result))
+    {
+        LOG_ERROR("could not create the %dx%d game target: 0x%08lx", width, height,
+                  (unsigned long)result);
+        RELEASE_COM(target);
+        RELEASE_COM(texture.view);
+        RELEASE_COM(texture.texture);
+        return false;
+    }
+
+    // Reuse the old slot so changing resolution doesn't use up texture ids.
+    if (renderer.game_texture < 0)
+    {
+        renderer.game_texture = renderer.texture_count;
+        renderer.texture_count += 1;
+    }
+    else
+    {
+        Texture& old = renderer.textures[renderer.game_texture];
+        RELEASE_COM(old.view);
+        RELEASE_COM(old.texture);
+        RELEASE_COM(renderer.game_target);
+    }
+    renderer.textures[renderer.game_texture] = texture;
+    renderer.game_target = target;
+    return true;
+}
+
+// Draws the game target onto the window at the largest whole-number scale, centered.
+static void compose_to_window()
+{
+    renderer_flush();
+    renderer.composed = true;
+
+    ID3D11DeviceContext* context = renderer.context;
+    D3D11_VIEWPORT viewport = {};
+    viewport.Width = (float)renderer.width;
+    viewport.Height = (float)renderer.height;
+    viewport.MaxDepth = 1.0f;
+    context->RSSetViewports(1, &viewport);
+    context->OMSetRenderTargets(1, &renderer.render_target, nullptr);
+    context->ClearRenderTargetView(renderer.render_target, BAR_COLOR);
+
+    int scale_x = renderer.width / renderer.game_width;
+    int scale_y = renderer.height / renderer.game_height;
+    int scale = scale_x < scale_y ? scale_x : scale_y;
+    if (scale < 1)
+    {
+        scale = 1;
+    }
+    int scaled_width = renderer.game_width * scale;
+    int scaled_height = renderer.game_height * scale;
+    Rect dest = {
+        .x = (float)((renderer.width - scaled_width) / 2),
+        .y = (float)((renderer.height - scaled_height) / 2),
+        .w = (float)scaled_width,
+        .h = (float)scaled_height,
+    };
+
+    upload_projection((float)renderer.width, (float)renderer.height, 0.0f, 0.0f);
+    renderer.batch_shader = renderer.default_shader;
+    push_quad(renderer.game_texture, dest, 0.0f, 0.0f, 1.0f, 1.0f, COLOR_WHITE);
+    renderer_flush();
+
+    // The game target is bound as an input now; unbind it so the next frame can draw into it.
+    ID3D11ShaderResourceView* no_view = nullptr;
+    context->PSSetShaderResources(0, 1, &no_view);
+    renderer.constants_dirty = true;
+}
+
+static void upload_projection(float width, float height, float camera_x, float camera_y)
 {
     // Maps pixels (camera at the top-left, y down) to clip space (-1..1, y up).
-    float width = (float)renderer.width;
-    float height = (float)renderer.height;
     FrameConstants constants = {};
     constants.projection[0] = 2.0f / width;
     constants.projection[5] = -2.0f / height;
     constants.projection[10] = 1.0f;
-    constants.projection[12] = -2.0f * renderer.camera_x / width - 1.0f;
-    constants.projection[13] = 2.0f * renderer.camera_y / height + 1.0f;
+    constants.projection[12] = -2.0f * camera_x / width - 1.0f;
+    constants.projection[13] = 2.0f * camera_y / height + 1.0f;
     constants.projection[15] = 1.0f;
 
     renderer.context->UpdateSubresource(renderer.constant_buffer, 0, nullptr, &constants, 0, 0);

@@ -32,6 +32,8 @@ struct Options
     bool run_tests = false;
     int frame_limit = 0; // 0 = run until closed
     const char* screenshot_path = nullptr; // saved on the last frame of a --frames run
+    int window_width = WINDOW_WIDTH;
+    int window_height = WINDOW_HEIGHT;
 };
 
 // Where the exe finds things. Dev builds run from <root>/bin/ and read loose files.
@@ -53,6 +55,7 @@ struct Memory
 
 static Paths make_paths();
 static bool parse_options(int argc, char** argv, Options& options);
+static bool parse_size(const char* text, int* width, int* height);
 static bool memory_init(Memory& memory);
 static void memory_shutdown(Memory& memory);
 static int run_game(const Options& options, Memory& memory);
@@ -135,6 +138,15 @@ static bool parse_options(int argc, char** argv, Options& options)
                 return false;
             }
         }
+        else if (strcmp(arg, "--window") == 0 && has_value)
+        {
+            i += 1;
+            if (!parse_size(argv[i], &options.window_width, &options.window_height))
+            {
+                LOG_ERROR("--window needs WIDTHxHEIGHT, got '%s'", argv[i]);
+                return false;
+            }
+        }
         else if (strcmp(arg, "--screenshot") == 0 && has_value)
         {
             i += 1;
@@ -151,6 +163,25 @@ static bool parse_options(int argc, char** argv, Options& options)
         LOG_ERROR("--screenshot needs --frames");
         return false;
     }
+    return true;
+}
+
+// "WIDTHxHEIGHT", both positive.
+static bool parse_size(const char* text, int* width, int* height)
+{
+    char* end = nullptr;
+    long parsed_width = strtol(text, &end, 10);
+    if (*end != 'x')
+    {
+        return false;
+    }
+    long parsed_height = strtol(end + 1, &end, 10);
+    if (*end != 0 || parsed_width <= 0 || parsed_height <= 0)
+    {
+        return false;
+    }
+    *width = (int)parsed_width;
+    *height = (int)parsed_height;
     return true;
 }
 
@@ -185,7 +216,8 @@ static void memory_shutdown(Memory& memory)
 
 static int run_game(const Options& options, Memory& memory)
 {
-    Window* window = platform_create_window(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
+    Window* window = platform_create_window(WINDOW_TITLE, options.window_width,
+                                            options.window_height);
     if (!window)
     {
         return 1;

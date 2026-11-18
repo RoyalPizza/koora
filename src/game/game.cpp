@@ -8,7 +8,7 @@
 
 constexpr const char* TEST_SPRITE_NAME = "art/placeholder/test_sprite.png";
 constexpr float SPRITE_SIZE = 16.0f;
-constexpr float BIG_SCALE = 4.0f;
+constexpr float BIG_SCALE = 2.0f;
 
 struct TestRect
 {
@@ -17,10 +17,13 @@ struct TestRect
 };
 
 constexpr TestRect TEST_RECTS[] = {
-    { { 40, 40, 200, 120 }, 0xE04848FF },
-    { { 260, 40, 120, 120 }, 0x48C060FF },
-    { { 400, 40, 160, 60 }, 0x4878E0FF },
-    { { 400, 110, 160, 50 }, 0xF0F0F080 },
+    { { 10, 10, 50, 30 }, 0xE04848FF },
+    { { 65, 10, 30, 30 }, 0x48C060FF },
+    { { 100, 10, 40, 15 }, 0x4878E0FF },
+    { { 100, 27, 40, 13 }, 0xF0F0F080 },
+    // Marks the game screen's corners, to check nothing is cropped.
+    { { 0, 0, 2, 2 }, 0xFFFFFFFF },
+    { { 318, 178, 2, 2 }, 0xFFFFFFFF },
 };
 
 struct GameState
@@ -57,8 +60,8 @@ void game_render(Arena& frame)
     }
 
     Rect source = { 0, 0, SPRITE_SIZE, SPRITE_SIZE };
-    renderer_draw_sprite(game->test_sprite, source, { 40, 200, SPRITE_SIZE, SPRITE_SIZE },
+    renderer_draw_sprite(game->test_sprite, source, { 10, 50, SPRITE_SIZE, SPRITE_SIZE },
                          COLOR_WHITE);
-    Rect big = { 80, 200, SPRITE_SIZE * BIG_SCALE, SPRITE_SIZE * BIG_SCALE };
+    Rect big = { 30, 50, SPRITE_SIZE * BIG_SCALE, SPRITE_SIZE * BIG_SCALE };
     renderer_draw_sprite(game->test_sprite, source, big, COLOR_WHITE);
 }

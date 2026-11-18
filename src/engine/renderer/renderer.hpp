@@ -6,8 +6,10 @@
 #include <cstdint>
 
 // 2D renderer. One backend per OS (render_d3d11.cpp); the build picks which file is compiled.
-// Everything is drawn as quads through one sprite batcher, in pixels with the origin at the
-// top-left of the window, offset by the camera position.
+// The game draws into a fixed low-res screen (NES/SNES-style, default 320x180) that is scaled
+// up to the window by a whole number, centered with black bars. Everything is drawn as quads
+// through one sprite batcher, in game pixels with the origin at the top-left of the game
+// screen, offset by the camera position.
 
 // Colors are 0xRRGGBBAA.
 constexpr uint32_t COLOR_WHITE = 0xFFFFFFFF;
@@ -34,8 +36,8 @@ void renderer_begin_frame(float r, float g, float b);
 // directly when mixing in other GPU work.
 void renderer_flush();
 
-// Saves what has been drawn so far this frame as a PNG. Call before renderer_end_frame.
-// Pixel data is staged in the frame arena. Returns false on failure.
+// Saves the window as shown (game screen scaled, with bars) as a PNG. Call before
+// renderer_end_frame. Pixel data is staged in the frame arena. Returns false on failure.
 bool renderer_save_screenshot(const char* path, Arena& frame);
 
 // Presents the frame with vsync.
@@ -54,10 +56,13 @@ int renderer_create_texture(int width, int height, const uint8_t* rgba);
 // Size of a texture in pixels; 0x0 for an invalid id.
 void renderer_get_texture_size(int texture, int* width, int* height);
 
-// World position shown at the top-left corner of the window.
+// World position shown at the top-left corner of the game screen.
 void renderer_set_camera(float x, float y);
 
-// Current window size in pixels, as last seen by begin_frame.
+// Size of the game screen in game pixels. Returns false if the target can't be created.
+bool renderer_set_game_resolution(int width, int height);
+
+// Current game screen size in game pixels.
 void renderer_get_size(int* width, int* height);
 
 // Solid rectangle.
