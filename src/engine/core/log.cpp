@@ -20,6 +20,7 @@ static double log_start_time = 0.0;
 static char log_buffer[BUFFER_SIZE];
 static int log_buffer_used = 0;
 
+static void append_to_buffer(const char* text, int len);
 static void rotate_logs(const char* path);
 static void make_numbered_path(const char* path, int number, char* out, int out_len);
 static void flush_buffer();
@@ -92,17 +93,47 @@ void log_write(LogLevel level, const char* file, int line, const char* format, .
     fputs(text, stderr);
     platform_debug_output(text);
 
-    if (log_buffer_used + len > BUFFER_SIZE)
-    {
-        flush_buffer();
-    }
-    memcpy(log_buffer + log_buffer_used, text, (size_t)len);
-    log_buffer_used += len;
+    append_to_buffer(text, len);
 
     if (level == LogLevel::LEVEL_WARN || level == LogLevel::LEVEL_ERROR)
     {
         flush_buffer();
     }
+}
+
+void log_output(const char* format, ...)
+{
+    char message[MAX_LINE_LEN];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(message, MAX_LINE_LEN, format, args);
+    va_end(args);
+
+    fputs(message, stdout);
+    fputs("\n", stdout);
+    fflush(stdout);
+
+    char text[MAX_LINE_LEN];
+    double seconds = platform_get_time() - log_start_time;
+    int len = snprintf(text, MAX_LINE_LEN, "[%.3f] [OUTPUT] %s\n", seconds, message);
+    if (len > 0 && len < MAX_LINE_LEN)
+    {
+        append_to_buffer(text, len);
+    }
+}
+
+static void append_to_buffer(const char* text, int len)
+{
+    if (log_buffer_used + len > BUFFER_SIZE)
+    {
+        flush_buffer();
+    }
+    if (len > BUFFER_SIZE)
+    {
+        return;
+    }
+    memcpy(log_buffer + log_buffer_used, text, (size_t)len);
+    log_buffer_used += len;
 }
 
 static void rotate_logs(const char* path)

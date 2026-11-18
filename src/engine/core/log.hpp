@@ -22,6 +22,10 @@ void log_shutdown();
 // Formats one line: "[seconds] [LEVEL] file.cpp:line message". Warnings and errors flush.
 void log_write(LogLevel level, const char* file, int line, const char* format, ...);
 
+// Program results for scripts to read: the plain message to stdout, plus a line in the log
+// file. Not shown in the debugger output.
+void log_output(const char* format, ...);
+
 #ifdef NDEBUG
 #define LOG_DEBUG(...) ((void)0)
 #else

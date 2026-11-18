@@ -39,7 +39,7 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   `docs/cpp.md` forbids keeping a `FILE*` open in a global. Info lines flush when the 16 KB
   buffer fills, on any warning/error, and at shutdown.
 
-- [ ] **2. Test runner and arenas** (`core/test.hpp/.cpp`, `core/arena.hpp/.cpp`)
+- [x] **2. Test runner and arenas** (`core/test.hpp/.cpp`, `core/arena.hpp/.cpp`)
   `--test` runs every registered test function, prints each failure with file:line, and exits
   non-zero on any failure. Tests use an explicit check macro, not `assert`, so they also run
   in release. Arena per the Memory section of `docs/cpp.md`: `arena_push` with alignment,
@@ -47,6 +47,8 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   Tests: alignment, reset, exhaustion.
   **Done when:** `bin\koora.exe --test` passes in debug and release, and a deliberately broken
   test makes it exit non-zero (then remove the broken test).
+  Note: tests live in `<module>_tests.cpp`; each module exposes one suite function, declared
+  in `test.hpp` and listed in the table in `test.cpp`. `arena_push` zeroes what it returns.
 
 - [ ] **3. Win32 platform and main loop** (`platform/platform.hpp`, `platform_win32.cpp`)
   `platform_alloc` (`VirtualAlloc`), `platform_get_time` (`QueryPerformanceCounter`), window
@@ -170,3 +172,4 @@ Record decisions made while working through the list here, one line each, newest
 - `LogLevel` members are `LEVEL_DEBUG` etc. because `<windows.h>` defines `ERROR`.
 - File and folder helpers (UTF-8 paths, rename, delete, create folder) and debugger output
   live in the platform layer, so `log.cpp` has no OS calls.
+- `log_output` prints program results (test summary) to stdout and copies them to the log file.
