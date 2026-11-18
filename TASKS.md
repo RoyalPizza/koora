@@ -28,13 +28,16 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
 
 ## Engine core
 
-- [ ] **1. Logging** (`src/engine/core/log.hpp/.cpp`)
+- [x] **1. Logging** (`src/engine/core/log.hpp/.cpp`)
   `log_init`, `log_shutdown`, `log_write`, `LOG_DEBUG/INFO/WARN/ERROR` macros capturing
   file and line, per the design doc. One file per session, keep the last 5
   (`koora.log` → `koora.1.log` … `koora.5.log`). Timestamps are seconds since startup.
   Warnings and errors flush. Also writes to stderr and `OutputDebugStringW`. `LOG_DEBUG`
   compiles out of release. Only the file name, not the full path, in each line.
   **Done when:** running the exe 7 times leaves exactly 6 log files, newest in `koora.log`.
+  Note: lines are buffered and appended with open/write/close on each flush, since
+  `docs/cpp.md` forbids keeping a `FILE*` open in a global. Info lines flush when the 16 KB
+  buffer fills, on any warning/error, and at shutdown.
 
 - [ ] **2. Test runner and arenas** (`core/test.hpp/.cpp`, `core/arena.hpp/.cpp`)
   `--test` runs every registered test function, prints each failure with file:line, and exits
@@ -162,3 +165,8 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
 ## Decisions
 
 Record decisions made while working through the list here, one line each, newest last.
+
+- Project includes are written from `src/`: `#include "engine/core/log.hpp"`.
+- `LogLevel` members are `LEVEL_DEBUG` etc. because `<windows.h>` defines `ERROR`.
+- File and folder helpers (UTF-8 paths, rename, delete, create folder) and debugger output
+  live in the platform layer, so `log.cpp` has no OS calls.
