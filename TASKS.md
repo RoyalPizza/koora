@@ -50,7 +50,7 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   Note: tests live in `<module>_tests.cpp`; each module exposes one suite function, declared
   in `test.hpp` and listed in the table in `test.cpp`. `arena_push` zeroes what it returns.
 
-- [ ] **3. Win32 platform and main loop** (`platform/platform.hpp`, `platform_win32.cpp`)
+- [x] **3. Win32 platform and main loop** (`platform/platform.hpp`, `platform_win32.cpp`)
   `platform_alloc` (`VirtualAlloc`), `platform_get_time` (`QueryPerformanceCounter`), window
   create/destroy, `platform_poll_events`. One block allocated at startup and split into the
   Permanent, Level and Frame arenas (sizes as `constexpr` in `main.cpp`). Main loop: poll,
@@ -59,6 +59,7 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   window. Window title "koora", 1280x720, resizable.
   **Done when:** `bin\koora.exe --frames 120` opens a window, closes itself, exits 0, and the
   log shows startup, arena sizes and a clean shutdown.
+  Note: console subsystem for now (stderr log is visible); the window is per-monitor DPI aware.
 
 - [ ] **4. D3D11 renderer: clear screen** (`renderer/renderer.hpp`, `render_d3d11.cpp`)
   Device, swap chain (flip model), render target, resize handling, vsync on.

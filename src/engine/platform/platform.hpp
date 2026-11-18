@@ -7,6 +7,9 @@
 // OS layer. One implementation file per OS (platform_win32.cpp); main.cpp and game code never
 // call the OS directly. Paths are UTF-8.
 
+// The game window. Opaque; the OS backend defines it.
+struct Window;
+
 // Reserves and commits zeroed memory. Returns nullptr on failure.
 void* platform_alloc(size_t bytes);
 
@@ -36,3 +39,16 @@ bool platform_create_folder(const char* path);
 
 // Sends text to the attached debugger, if any.
 void platform_debug_output(const char* text);
+
+// Opens a resizable window whose client area is width x height. Only one window may exist.
+// Returns nullptr on failure.
+Window* platform_create_window(const char* title, int width, int height);
+
+// Closes the window.
+void platform_destroy_window(Window* window);
+
+// Handles pending OS messages. Returns false once the user has asked to quit.
+bool platform_poll_events(Window* window);
+
+// Current client area size in pixels. Zero while minimized.
+void platform_get_window_size(Window* window, int* width, int* height);
