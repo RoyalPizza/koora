@@ -2,6 +2,9 @@
 
 A C++ project. Written in C-style C++ per `docs/cpp.md`.
 
+A 2D engine for NES/SNES-era games: pixel art, low resolution, simple scope. It is not an
+emulator and doesn't target that hardware; those are just the kind of games it is for.
+
 ---
 
 ## Absolute rules
@@ -52,6 +55,7 @@ build.bat            Windows build (MSVC). `build.bat` = debug, `build.bat relea
 src/engine/<system>/ one folder per engine system (core, platform, renderer, input,
                      physics, entity, audio, text, assets, config); main.cpp is in core/
 src/game/            game code, plus data/, art/, audio/, maps/ content
+tools/               dev scripts (Python, standard library only): placeholder art, test sounds
 third-party/         git submodules: stb, miniaudio, tomlc17
 docs/                standards and design docs
 ```

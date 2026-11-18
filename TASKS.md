@@ -80,7 +80,7 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   Note: PNGs are encoded to memory with `stbi_write_png_to_mem`, then written, so no `FILE*`
   sits in a callback context. stb allocations go to a 64 MB scratch arena reset after each use.
 
-- [ ] **6. Sprite batcher, rects and textures** (`renderer/`, `assets/`)
+- [x] **6. Sprite batcher, rects and textures** (`renderer/`, `assets/`)
   One dynamic vertex buffer of quads, flushed when the texture or shader changes or the
   buffer fills. `sprite.hlsl`. Orthographic camera in pixels, origin top-left, with a
   camera position for scrolling. `renderer_draw_rect`, `renderer_draw_sprite` (texture +
@@ -88,6 +88,17 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   filtering for pixel art. The asset table lives in the Permanent arena.
   **Done when:** a screenshot shows colored rects and a test PNG drawn at 1x and scaled 4x
   with sharp pixels.
+  Note: content is loaded by logical name (`art/x.png`, `shaders/sprite.hlsl`) through
+  `assets.cpp`. `src/game/game.cpp` holds a test scene until the sandbox (task 14).
+  Placeholder art comes from `tools/make_placeholder_art.py`.
+
+- [ ] **6b. Low-resolution game screen** (`renderer/`)
+  The engine is for NES/SNES-era pixel-art games, so the game draws into a fixed low-res
+  render target (default 320x180, set by the game) that is scaled up to the window by the
+  largest whole number, centered, with black bars. Point sampling. The camera and all draw
+  calls work in game pixels. Screenshots capture the window as shown.
+  **Done when:** a screenshot at 1280x720 shows the test scene at exactly 4x with sharp
+  pixels, and a resized window keeps whole-number scaling with bars.
 
 - [ ] **7. Config (TOML)** (`config/config.hpp`, `config_toml.cpp`)
   Wrap tomlc17 per the design doc's `config.h`, plus string-array access. Missing keys or
@@ -180,3 +191,7 @@ Record decisions made while working through the list here, one line each, newest
 - `log_output` prints program results (test summary) to stdout and copies them to the log file.
 - `assets_read_file` is the one place files are read whole; the pack (task 15) hooks in there.
 - Permanent arena raised to 192 MB to hold the 64 MB asset scratch arena.
+- koora is an NES/SNES-era engine: 2D pixel-art games of that scope (not an emulator, not
+  building for that hardware). Added task 6b for a fixed low-res game screen; default 320x180
+  (16:9, 4x at 720p, 6x at 1080p), changeable per game.
+- Dev scripts (placeholder art, test sounds) go in `tools/`, Python standard library only.

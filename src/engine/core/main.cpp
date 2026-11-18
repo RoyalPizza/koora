@@ -6,6 +6,7 @@
 #include "engine/core/test.hpp"
 #include "engine/platform/platform.hpp"
 #include "engine/renderer/renderer.hpp"
+#include "game/game.hpp"
 
 #include <cstdlib>
 #include <cstring>
@@ -54,7 +55,7 @@ static Paths make_paths();
 static bool parse_options(int argc, char** argv, Options& options);
 static bool memory_init(Memory& memory);
 static void memory_shutdown(Memory& memory);
-static int run_game(const Options& options, const Paths& paths, Memory& memory);
+static int run_game(const Options& options, Memory& memory);
 
 int main(int argc, char** argv)
 {
@@ -79,13 +80,14 @@ int main(int argc, char** argv)
     }
 
     Memory memory;
-    if (!memory_init(memory) || !assets_init(memory.permanent))
+    if (!memory_init(memory) ||
+        !assets_init(memory.permanent, paths.game_folder.c_str(), paths.shader_folder.c_str()))
     {
         log_shutdown();
         return 1;
     }
 
-    exit_code = run_game(options, paths, memory);
+    exit_code = run_game(options, memory);
 
     memory_shutdown(memory);
     LOG_INFO("clean shutdown, exit code %d", exit_code);
@@ -181,20 +183,21 @@ static void memory_shutdown(Memory& memory)
     memory.block = nullptr;
 }
 
-static int run_game(const Options& options, const Paths& paths, Memory& memory)
+static int run_game(const Options& options, Memory& memory)
 {
     Window* window = platform_create_window(WINDOW_TITLE, WINDOW_WIDTH, WINDOW_HEIGHT);
     if (!window)
     {
         return 1;
     }
-    if (!renderer_init(window, paths.shader_folder.c_str()))
+    if (!renderer_init(window, memory.permanent))
     {
         platform_destroy_window(window);
         return 1;
     }
-    if (shader_load("sprite") < 0)
+    if (!game_init(memory.permanent, memory.level))
     {
+        LOG_ERROR("game failed to start");
         renderer_shutdown();
         platform_destroy_window(window);
         return 1;
@@ -214,6 +217,7 @@ static int run_game(const Options& options, const Paths& paths, Memory& memory)
         int steps = 0;
         while (accumulator >= FIXED_STEP && steps < MAX_STEPS_PER_FRAME)
         {
+            game_update((float)FIXED_STEP);
             update_count += 1;
             accumulator -= FIXED_STEP;
             steps += 1;
@@ -225,6 +229,7 @@ static int run_game(const Options& options, const Paths& paths, Memory& memory)
 
         bool last_frame = options.frame_limit > 0 && frame_count + 1 >= options.frame_limit;
         renderer_begin_frame(CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2]);
+        game_render(memory.frame);
         if (last_frame && options.screenshot_path)
         {
             renderer_save_screenshot(options.screenshot_path, memory.frame);
