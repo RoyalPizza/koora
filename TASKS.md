@@ -3,6 +3,11 @@
 The engine core from `docs/game-engine-design-outline.md`, built to `docs/cpp.md`, on Windows
 first. Work top to bottom. Each task ends with its **Done when** check passing.
 
+## Status
+
+Last session (2026-11-18): tasks 1 to 6b done. **Next: task 7 (Config).**
+Useful flags: `--test`, `--frames N`, `--screenshot <path>`, `--window WxH`.
+
 ## How to work through this list
 
 - Read `CLAUDE.md`, `docs/cpp.md` and `docs/game-engine-design-outline.md` first.
@@ -114,6 +119,7 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   hot-plug polling and a deadzone of 0.2. Action layer: `input_down/pressed/released/axis`,
   bindings loaded from `src/game/data/bindings.toml` with full gamepad coverage plus
   keyboard. Last-used device tracking. XInput rumble. Text entry from `WM_CHAR`.
+  Mouse position is reported in game pixels (undo the 6b scale and bar offset).
   **Done when:** tests cover pressed/released edges and axis math from fake input states,
   and a test binding file loads. Real controller testing is for the human (see below).
 
@@ -121,7 +127,8 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   `stb_truetype`, ASCII 32–126 baked into an atlas per pixel size, drawn through the sprite
   batcher. `font_load`, `font_draw_text`, `font_measure_text`. No font ships yet: if
   `src/game/art/` has no `.ttf`, load `C:\Windows\Fonts\consola.ttf` and log a warning that
-  this is a dev-only fallback.
+  this is a dev-only fallback. Text is drawn in game pixels on the low-res screen, so sizes
+  are small (8 and 16 px); Consolas will look soft there until a pixel font is picked.
   **Done when:** a screenshot shows readable text at two sizes, and `font_measure_text`
   matches the drawn width.
 
@@ -155,7 +162,8 @@ Logs go to `<root>\bin\logs\`. Release packing (task 15) replaces this for shipp
   A tiny test level, not a real game: a player box that runs and jumps on the tilemap with
   move-and-slide, a few coins to collect (entities + overlap), coin count drawn as text,
   a sound on pickup, camera following the player, Escape or Start to quit. Values (speed,
-  jump, gravity) come from `src/game/data/*.toml`. Add `--autoplay` that feeds a scripted
+  jump, gravity) come from `src/game/data/*.toml`, sized for the 320x180 game screen and
+  16 px tiles. Add `--autoplay` that feeds a scripted
   input sequence so a `--frames` run is repeatable.
   **Done when:** `--autoplay --frames 600 --screenshot` shows the player has moved and
   collected at least one coin, confirmed in the log.
